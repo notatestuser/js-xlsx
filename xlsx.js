@@ -74,7 +74,7 @@ var parse_date_code = function parse_date_code(v,opts) {
 	var date = Math.floor(v), time = Math.round(86400 * (v - date)), dow=0;
 	var dout=[], out={D:date, T:time}; fixopts(opts = (opts||{}));
 	if(opts.date1904) date += 1462;
-	if(date === 60) (dout = [1900,2,29], dow=3); /* JSHint bug (issue #1010) */
+	if(date === 60) {dout = [1900,2,29]; dow=3;}
 	else {
 		if(date > 60) --date;
 		/* 1 = Jan 1 1900 */
@@ -84,7 +84,7 @@ var parse_date_code = function parse_date_code(v,opts) {
 		dow = d.getDay();
 		if(opts.mode === 'excel' && date < 60) dow = (dow + 6) % 7;
 	}
-	out.y = dout[0], out.m = dout[1], out.d = dout[2];
+	out.y = dout[0]; out.m = dout[1]; out.d = dout[2];
 	out.S = time % 60; time = Math.floor(time / 60);
 	out.M = time % 60; time = Math.floor(time / 60);
 	out.H = time;
@@ -165,7 +165,7 @@ function eval_fmt(fmt, v, opts) {
 				q={t:c, v:o}; out.push(q); lst = c; break;
 			case 'A':
 				q={t:c,v:"A"};
-				if(fmt.substr(i, 3) === "A/P") (hr = 'h',i+=3);
+				if(fmt.substr(i, 3) === "A/P") {hr = 'h';i+=3;}
 				else if(fmt.substr(i,5) === "AM/PM") { q.v = "AM"; i+=5; hr = 'h'; }
 				else q.t = "t";
 				out.push(q); lst = c; break;
@@ -222,12 +222,13 @@ SSF.format = format;
 
 	return SSF;
 })();
-var XLSX = (function(){
+var XLSX = {};
+(function(XLSX){
 function parsexmltag(tag) {
 	var words = tag.split(/\s+/);
 	var z = {'0': words[0]};
 	if(words.length === 1) return z;
-	tag.match(/(\w+)="([^"]*)"/g).map(
+	(tag.match(/(\w+)="([^"]*)"/g) || []).map(
 		function(x){var y=x.match(/(\w+)="([^"]*)"/); z[y[1]] = y[2]; });
 	return z;
 }
@@ -278,7 +279,7 @@ function matchtag(f,g) {return new RegExp('<'+f+'(?: xml:space="preserve")?>([^\
 function parseVector(data) {
 	var h = parsexmltag(data);
 
-	var matches = data.match(new RegExp("<vt:" + h.baseType + ">(.*?)</vt:" + h.baseType + ">", 'g'));
+	var matches = data.match(new RegExp("<vt:" + h.baseType + ">(.*?)</vt:" + h.baseType + ">", 'g'))||[];
 	if(matches.length != h.size) throw "unexpected vector length " + matches.length + " != " + h.size;
 	var res = [];
 	matches.forEach(function(x) {
@@ -297,7 +298,7 @@ var parse_sst = (function(){
 		/* 18.4.7 rPr CT_RPrElt */
 		var parse_rpr = function(rpr, intro, outro) {
 			var font = {};
-			rpr.match(/<[^>]*>/g).forEach(function(x) {
+			(rpr.match(/<[^>]*>/g)||[]).forEach(function(x) {
 				var y = parsexmltag(x);
 				switch(y[0]) {
 					/* 18.8.12 condense CT_BooleanProperty */
@@ -421,7 +422,7 @@ var parse_sst = (function(){
 		var s = [];
 		/* 18.4.9 sst CT_Sst */
 		var sst = data.match(new RegExp("<sst([^>]*)>([\\s\\S]*)<\/sst>","m"));
-		if(sst) {
+		if(isval(sst)) {
 			s = sst[2].replace(/<si>/g,"").split(/<\/si>/).map(parse_si);
 			sst = parsexmltag(sst[1]); s.Count = sst.count; s.Unique = sst.uniqueCount;
 		}
@@ -636,7 +637,6 @@ function parseProps(data) {
 			switch(v[i].v) {
 				case "Worksheets": widx = j; p.Worksheets = +v[++i]; break;
 				case "Named Ranges": ++i; break; // TODO: Handle Named Ranges
-				default: console.error("Unrecognized key in Heading Pairs: " + v[i++].v);
 			}
 		}
 		var parts = parseVector(q.TitlesOfParts).map(utf8read);
@@ -653,7 +653,7 @@ function parseProps(data) {
 function parseDeps(data) {
 	var d = [];
 	var l = 0, i = 1;
-	data.match(/<[^>]*>/g).forEach(function(x) {
+	(data.match(/<[^>]*>/g)||[]).forEach(function(x) {
 		var y = parsexmltag(x);
 		switch(y[0]) {
 			case '<?xml': break;
@@ -672,7 +672,7 @@ function parseCT(data) {
 	if(!data) return data;
 	var ct = { workbooks: [], sheets: [], calcchains: [], themes: [], styles: [],
 		coreprops: [], extprops: [], strs:[], xmlns: "" };
-	data.match(/<[^>]*>/g).forEach(function(x) {
+	(data.match(/<[^>]*>/g)||[]).forEach(function(x) {
 		var y = parsexmltag(x);
 		switch(y[0]) {
 			case '<?xml': break;
@@ -683,7 +683,7 @@ function parseCT(data) {
 				break;
 		}
 	});
-	if(ct.xmlns !== XMLNS_CT) throw "Unknown Namespace: " + ct.xmlns;
+	if(ct.xmlns !== XMLNS_CT) throw new Error("Unknown Namespace: " + ct.xmlns);
 	ct.calcchain = ct.calcchains.length > 0 ? ct.calcchains[0] : "";
 	ct.sst = ct.strs.length > 0 ? ct.strs[0] : "";
 	ct.style = ct.styles.length > 0 ? ct.styles[0] : "";
@@ -792,11 +792,9 @@ function parseWB(data) {
 			case '<mx:ArchID': break;
 			case '<mc:AlternateContent': pass=true; break;
 			case '</mc:AlternateContent>': pass=false; break;
-
-			default: if(!pass) console.error("WB Tag",x,y);
 		}
 	});
-	if(wb.xmlns !== XMLNS_WB) throw "Unknown Namespace: " + wb.xmlns;
+	if(wb.xmlns !== XMLNS_WB) throw new Error("Unknown Namespace: " + wb.xmlns);
 
 	var z;
 	/* defaults */
@@ -845,7 +843,7 @@ function parseCXfs(t) {
 			case '<alignment': break;
 
 			/* 18.8.33 protection CT_CellProtection */
-			case '<protection': break;
+			case '<protection': case '</protection>': case '<protection/>': break;
 
 			case '<extLst': case '</extLst>': break;
 			case '<ext': break;
@@ -878,23 +876,30 @@ function parseStyles(data) {
 	return styles;
 }
 
+function getdata(data) {
+	if(!data) return {};
+	if(data.data) return data.data;
+	if(data._data && data._data.getContent) return Array.prototype.slice.call(data._data.getContent(),0).map(function(x) { return String.fromCharCode(x); }).join("");
+	return {};
+}
+
 function parseZip(zip) {
 	var entries = Object.keys(zip.files);
 	var keys = entries.filter(function(x){return x.substr(-1) != '/';}).sort();
-	var dir = parseCT((zip.files['[Content_Types].xml']||{}).data);
+	var dir = parseCT(getdata(zip.files['[Content_Types].xml']));
 
 	strs = {};
-	if(dir.sst) strs=parse_sst(zip.files[dir.sst.replace(/^\//,'')].data);
+	if(dir.sst) strs=parse_sst(getdata(zip.files[dir.sst.replace(/^\//,'')]));
 
 	styles = {};
-	if(dir.style) styles = parseStyles(zip.files[dir.style.replace(/^\//,'')].data);
+	if(dir.style) styles = parseStyles(getdata(zip.files[dir.style.replace(/^\//,'')]));
 
-	var wb = parseWB(zip.files[dir.workbooks[0].replace(/^\//,'')].data);
-	var propdata = dir.coreprops.length !== 0 ? zip.files[dir.coreprops[0].replace(/^\//,'')].data : "";
-	propdata += dir.extprops.length !== 0 ? zip.files[dir.extprops[0].replace(/^\//,'')].data : "";
+	var wb = parseWB(getdata(zip.files[dir.workbooks[0].replace(/^\//,'')]));
+	var propdata = dir.coreprops.length !== 0 ? getdata(zip.files[dir.coreprops[0].replace(/^\//,'')]) : "";
+	propdata += dir.extprops.length !== 0 ? getdata(zip.files[dir.extprops[0].replace(/^\//,'')]) : "";
 	var props = propdata !== "" ? parseProps(propdata) : {};
 	var deps = {};
-	if(dir.calcchain) deps=parseDeps(zip.files[dir.calcchain.replace(/^\//,'')].data);
+	if(dir.calcchain) deps=parseDeps(getdata(zip.files[dir.calcchain.replace(/^\//,'')]));
 	var sheets = {}, i=0;
 	if(!props.Worksheets) {
 		/* Google Docs doesn't generate the appropriate metadata, so we impute: */
@@ -905,12 +910,12 @@ function parseZip(zip) {
 			props.SheetNames[j] = wbsheets[j].name;
 		}
 		for(i = 0; i != props.Worksheets; ++i) {
-			sheets[props.SheetNames[i]]=parseSheet(zip.files['xl/worksheets/sheet' + (i+1) + '.xml'].data);
+			sheets[props.SheetNames[i]]=parseSheet(getdata(zip.files['xl/worksheets/sheet' + (i+1) + '.xml']));
 		}
 	}
 	else {
 		for(i = 0; i != props.Worksheets; ++i) {
-			sheets[props.SheetNames[i]]=parseSheet(zip.files[dir.sheets[i].replace(/^\//,'')].data);
+			sheets[props.SheetNames[i]]=parseSheet(getdata(zip.files[dir.sheets[i].replace(/^\//,'')]));
 		}
 	}
 	return {
@@ -953,12 +958,12 @@ function readFileSync(data, options) {
 	return readSync(data, o);
 }
 
-this.read = readSync;
-this.readFile = readFileSync;
-this.parseZip = parseZip;
+XLSX.read = readSync;
+XLSX.readFile = readFileSync;
+XLSX.parseZip = parseZip;
 return this;
 
-})();
+})(XLSX);
 
 var _chr = function(c) { return String.fromCharCode(c); };
 
@@ -1038,18 +1043,19 @@ function sheet_to_csv(sheet) {
 	};
 	var out = "";
 	if(sheet["!ref"]) {
-		var r = utils.decode_range(sheet["!ref"]);
+		var r = XLSX.utils.decode_range(sheet["!ref"]);
 		for(var R = r.s.r; R <= r.e.r; ++R) {
 			var row = [];
 			for(var C = r.s.c; C <= r.e.c; ++C) {
-				var val = sheet[utils.encode_cell({c:C,r:R})];
-				row.push(val ? stringify(val).replace(/\\r\\n/g,"\n").replace(/\\t/g,"\t").replace(/\\\\/g,"\\").replace(/\\\"/g,"\"\"") : "");
+				var val = sheet[XLSX.utils.encode_cell({c:C,r:R})];
+				row.push(val ? stringify(val).replace(/\\r\\n/g,"\n").replace(/\\t/g,"\t").replace(/\\\\/g,"\\").replace("\\\"","\"\"") : "");
 			}
 			out += row.join(",") + "\n";
 		}
 	}
 	return out;
 }
+var make_csv = sheet_to_csv;
 
 function get_formulae(ws) {
 	var cmds = [];
@@ -1064,7 +1070,7 @@ function get_formulae(ws) {
 	return cmds;
 }
 
-var utils = {
+XLSX.utils = {
 	encode_col: encode_col,
 	encode_row: encode_row,
 	encode_cell: encode_cell,
@@ -1075,6 +1081,7 @@ var utils = {
 	decode_cell: decode_cell,
 	decode_range: decode_range,
 	sheet_to_csv: sheet_to_csv,
+	make_csv: sheet_to_csv,
 	get_formulae: get_formulae,
 	sheet_to_row_object_array: sheet_to_row_object_array
 };
@@ -1082,7 +1089,7 @@ var utils = {
 if(typeof require !== 'undefined' && typeof exports !== 'undefined') {
 	exports.read = XLSX.read;
 	exports.readFile = XLSX.readFile;
-	exports.utils = utils;
+	exports.utils = XLSX.utils;
 	exports.main = function(args) {
 		var zip = XLSX.read(args[0], {type:'file'});
 		console.log(zip.Sheets);
