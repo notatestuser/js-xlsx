@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>JS-XLSX Live Demo</title>
 <style>
 #drop{
 	border:2px dashed #bbb;
@@ -13,6 +17,8 @@
 	width:100%;
 }
 </style>
+</head>
+<body>
 <b>JS-XLSX Live Demo</b><br />
 <a href="https://github.com/SheetJS/js-xlsx">Github Repo</a><br />
 <a href="https://github.com/SheetJS/js-xlsx/issues">Issues?  Something look weird?  Click here and report an issue</a><br />
@@ -29,6 +35,19 @@
 <script src="xlsx.js"></script>
 <script src="shim.js"></script>
 <script>
+function xlsxworker(data, cb) {
+	var worker = new Worker('./xlsxworker.js');
+	worker.onmessage = function(e) {
+		switch(e.data.t) {
+			case 'ready': break;
+			case 'e': console.error(e.data.d);
+			case 'xlsx': cb(JSON.parse(e.data.d)); break;
+		}
+	};
+    var arr = btoa(String.fromCharCode.apply(null, new Uint8Array(data)));
+	worker.postMessage(arr);
+}
+
 function get_radio_value( radioName ) {
 	var radios = document.getElementsByName( radioName );
 	for( var i = 0; i < radios.length; i++ ) {
@@ -108,10 +127,14 @@ function handleDrop(e) {
 		var name = f.name;
 		reader.onload = function(e) {
 			var data = e.target.result;
+			if(typeof Worker !== 'undefined') {
+				xlsxworker(data, process_wb);
+			} else {
 			//var wb = XLSX.read(data, {type: 'binary'});
 			var arr = String.fromCharCode.apply(null, new Uint8Array(data));
 			var wb = XLSX.read(btoa(arr), {type: 'base64'});
 			process_wb(wb);
+			}
 		};
 		//reader.readAsBinaryString(f);
 		reader.readAsArrayBuffer(f);
@@ -141,3 +164,5 @@ if(drop.addEventListener) {
 		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
 	})();
 </script>
+</body>
+</html>
