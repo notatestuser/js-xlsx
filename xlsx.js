@@ -879,7 +879,7 @@ function parseStyles(data) {
 }
 
 function getdata(data) {
-	if(!data) return null; 
+	if(!data) return null;
 	if(data.data) return data.data;
 	if(data._data && data._data.getContent) return Array.prototype.slice.call(data._data.getContent(),0).map(function(x) { return String.fromCharCode(x); }).join("");
 	return null;
@@ -919,14 +919,14 @@ function parseZip(zip) {
 			props.SheetNames[j] = wbsheets[j].name;
 		}
 		for(i = 0; i != props.Worksheets; ++i) {
-			try { /* TODO: remove these guards */ 
+			try { /* TODO: remove these guards */
 			sheets[props.SheetNames[i]]=parseSheet(getdata(getzipfile(zip, 'xl/worksheets/sheet' + (i+1) + '.xml')));
 			} catch(e) {}
 		}
 	}
 	else {
 		for(i = 0; i != props.Worksheets; ++i) {
-			try { 
+			try {
 			sheets[props.SheetNames[i]]=parseSheet(getdata(getzipfile(zip, dir.sheets[i].replace(/^\//,''))));
 			} catch(e) {}
 		}
@@ -990,6 +990,7 @@ function split_cell(cstr) { return cstr.replace(/(\$?[A-Z]*)(\$?[0-9]*)/,"$1,$2"
 function decode_cell(cstr) { var splt = split_cell(cstr); return { c:decode_col(splt[0]), r:decode_row(splt[1]) }; }
 function decode_range(range) { var x =range.split(":").map(decode_cell); return {s:x[0],e:x[x.length-1]}; }
 function encode_range(range) { return encode_cell(range.s) + ":" + encode_cell(range.e); }
+
 /**
  * Convert a sheet into an array of objects where the column headers are keys.
  **/
@@ -1014,6 +1015,61 @@ function sheet_to_row_object_array(sheet){
 		}
 
 		for (var R = range.s.r + 1; R <= range.e.r; ++R) {
+			emptyRow = true;
+			//Row number is recorded in the prototype
+			//so that it doesn't appear when stringified.
+			rowObject = Object.create({ __rowNum__ : R });
+			for (C = range.s.c; C <= range.e.c; ++C) {
+				val = sheet[encode_cell({
+					c: C,
+					r: R
+				})];
+				if(val !== undefined) switch(val.t){
+					case 's': case 'str': case 'b': case 'n':
+						if(val.v !== undefined) {
+							rowObject[columnHeaders[C]] = val.v;
+							emptyRow = false;
+						}
+						break;
+					case 'e': break; /* throw */
+					default: throw 'unrecognized type ' + val.t;
+				}
+			}
+			if(!emptyRow) {
+				outSheet.push(rowObject);
+			}
+		}
+	}
+	return outSheet;
+}
+
+/**
+ * Convert a sheet into an array of objects where the column headers are indexes, not keys.
+ **/
+function sheet_to_row_object_array_with_column_indexes(sheet){
+	var val, rowObject, range, columnHeaders, emptyRow, C;
+	var outSheet = [];
+	if (sheet["!ref"]) {
+		range = decode_range(sheet["!ref"]);
+
+		columnHeaders = {};
+		for (C = range.s.c; C <= range.e.c; ++C) {
+			val = sheet[encode_cell({
+				c: C,
+				r: range.s.r
+			})];
+			if(val){
+				switch(val.t) {
+					case 'n':
+					case 's':
+					case 'str':
+						columnHeaders[C] = C;
+						break;
+				}
+			}
+		}
+
+		for (var R = range.s.r; R <= range.e.r; ++R) {
 			emptyRow = true;
 			//Row number is recorded in the prototype
 			//so that it doesn't appear when stringified.
@@ -1096,7 +1152,8 @@ XLSX.utils = {
 	sheet_to_csv: sheet_to_csv,
 	make_csv: sheet_to_csv,
 	get_formulae: get_formulae,
-	sheet_to_row_object_array: sheet_to_row_object_array
+	sheet_to_row_object_array: sheet_to_row_object_array,
+	sheet_to_row_object_array_with_column_indexes: sheet_to_row_object_array_with_column_indexes
 };
 
 if(typeof require !== 'undefined' && typeof exports !== 'undefined') {
